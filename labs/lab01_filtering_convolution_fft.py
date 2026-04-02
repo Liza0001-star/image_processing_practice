@@ -1,12 +1,5 @@
-git add .
-git commit -m "Implemented lab01 functions"
-git push origin main
-
-<<<<<<< HEAD
 from __future__ import annotations
-=======
-"""Lab 01: filtering/convolution + FFT tools (spatial & frequency domain)."""
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
+
 
 import argparse
 from pathlib import Path
@@ -20,11 +13,6 @@ from scipy import signal
 BorderType = Literal["reflect", "constant", "wrap", "replicate"]
 
 
-<<<<<<< HEAD
-def conv2d(image, kernel, border="reflect") -> np.ndarray:
-    image_f = image.astype(np.float32)
-    kernel = kernel.astype(np.float32)
-=======
 def conv2d(
     image: npt.NDArray[np.generic],
     kernel: npt.NDArray[np.generic],
@@ -32,18 +20,11 @@ def conv2d(
 ) -> np.ndarray:
     image_f = np.asarray(image, dtype=np.float32)
     kernel_f = np.asarray(kernel, dtype=np.float32)
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
 
     border_map = {
         "reflect": "reflect",
         "constant": "constant",
         "wrap": "wrap",
-<<<<<<< HEAD
-        "replicate": "edge"
-    }
-
-    mode = border_map[border]
-=======
         "replicate": "edge",
     }
     mode = border_map[border]
@@ -65,26 +46,8 @@ def conv2d(
             out[:, :, c] = signal.convolve2d(padded, kernel_f, mode="valid")
 
     return out.astype(np.float32)
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
 
-    kh, kw = kernel.shape
-    pad_h, pad_w = kh // 2, kw // 2
 
-<<<<<<< HEAD
-    if image.ndim == 2:
-        padded = np.pad(image_f, ((pad_h, pad_h), (pad_w, pad_w)), mode=mode)
-        out = signal.convolve2d(padded, kernel, mode="valid")
-    else:
-        out = np.zeros_like(image_f)
-        for c in range(image.shape[2]):
-            padded = np.pad(image_f[:, :, c],
-                            ((pad_h, pad_h), (pad_w, pad_w)),
-                            mode=mode)
-            out[:, :, c] = signal.convolve2d(padded, kernel, mode="valid")
-
-    return out.astype(np.float32)
-
-=======
 def make_gaussian_kernel(ksize: int, sigma: float) -> npt.NDArray[np.float32]:
     if ksize <= 0 or ksize % 2 == 0:
         raise ValueError("ksize must be a positive odd integer")
@@ -96,56 +59,22 @@ def make_gaussian_kernel(ksize: int, sigma: float) -> npt.NDArray[np.float32]:
     kernel = np.exp(-(xx**2 + yy**2) / (2.0 * sigma**2))
     kernel /= np.sum(kernel)
     return kernel.astype(np.float32)
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
 
-def make_gaussian_kernel(ksize: int, sigma: float):
-    ax = np.arange(-(ksize // 2), ksize // 2 + 1)
-    xx, yy = np.meshgrid(ax, ax)
-    kernel = np.exp(-(xx**2 + yy**2) / (2 * sigma**2))
-    kernel /= np.sum(kernel)
-    return kernel.astype(np.float32)
 
-<<<<<<< HEAD
-=======
 def _clip_to_dtype_range(x: np.ndarray, dtype: np.dtype) -> np.ndarray:
     if np.issubdtype(dtype, np.integer):
         info = np.iinfo(dtype)
         return np.clip(x, info.min, info.max)
     return x
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
 
-def _clip_to_dtype_range(x, dtype):
-    if np.issubdtype(dtype, np.integer):
-        info = np.iinfo(dtype)
-        return np.clip(x, info.min, info.max)
-    return x
 
-<<<<<<< HEAD
-
-def apply_gaussian_blur(image, ksize, sigma):
-    kernel = make_gaussian_kernel(ksize, sigma)
-    out = conv2d(image, kernel)
-    return _clip_to_dtype_range(out, image.dtype).astype(image.dtype)
-
-=======
 def apply_gaussian_blur(image: npt.NDArray[np.generic], ksize: int, sigma: float) -> np.ndarray:
     kernel = make_gaussian_kernel(ksize, sigma)
     out = conv2d(image, kernel, border="reflect")
     out = _clip_to_dtype_range(out, image.dtype)
     return out.astype(image.dtype)
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
 
-def apply_box_blur(image, ksize):
-    kernel = np.ones((ksize, ksize), dtype=np.float32) / (ksize * ksize)
-    out = conv2d(image, kernel)
-    return _clip_to_dtype_range(out, image.dtype).astype(image.dtype)
 
-<<<<<<< HEAD
-
-def apply_median_blur(image, ksize):
-    return cv2.medianBlur(image.astype(np.uint8), ksize)
-
-=======
 def apply_box_blur(image: npt.NDArray[np.generic], ksize: int) -> np.ndarray:
     if ksize <= 0 or ksize % 2 == 0:
         raise ValueError("ksize must be a positive odd integer")
@@ -154,52 +83,14 @@ def apply_box_blur(image: npt.NDArray[np.generic], ksize: int) -> np.ndarray:
     out = conv2d(image, kernel, border="reflect")
     out = _clip_to_dtype_range(out, image.dtype)
     return out.astype(image.dtype)
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
 
-def add_salt_pepper_noise(image, amount, salt_vs_pepper=0.5, *, seed=0):
-    rng = np.random.default_rng(seed)
-    out = image.copy()
 
-<<<<<<< HEAD
-    H, W = image.shape[:2]
-    total = int(H * W * amount)
-
-    salt = int(total * salt_vs_pepper)
-    pepper = total - salt
-
-    coords = (rng.integers(0, H, salt), rng.integers(0, W, salt))
-    out[coords] = np.max(image)
-=======
 def apply_median_blur(image: npt.NDArray[np.generic], ksize: int) -> np.ndarray:
     if ksize <= 0 or ksize % 2 == 0:
         raise ValueError("ksize must be a positive odd integer")
     return cv2.medianBlur(np.asarray(image).astype(np.uint8), ksize)
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
-
-    coords = (rng.integers(0, H, pepper), rng.integers(0, W, pepper))
-    out[coords] = np.min(image)
-
-<<<<<<< HEAD
-    return out
 
 
-def add_gaussian_noise(image, sigma, *, seed=0):
-    rng = np.random.default_rng(seed)
-    noise = rng.normal(0, sigma, image.shape)
-    out = image.astype(np.float32) + noise
-    return _clip_to_dtype_range(out, image.dtype).astype(image.dtype)
-
-
-def sobel_edges(image, ksize=3):
-    if image.ndim == 3:
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    image = image.astype(np.float32)
-
-    gx = cv2.Sobel(image, cv2.CV_32F, 1, 0, ksize=ksize)
-    gy = cv2.Sobel(image, cv2.CV_32F, 0, 1, ksize=ksize)
-    mag = np.sqrt(gx**2 + gy**2)
-=======
 def add_salt_pepper_noise(
     image: npt.NDArray[np.generic],
     amount: float,
@@ -256,27 +147,8 @@ def add_gaussian_noise(image: npt.NDArray[np.generic], sigma: float, *, seed: in
     out = np.asarray(image, dtype=np.float32) + noise
     out = _clip_to_dtype_range(out, image.dtype)
     return out.astype(image.dtype)
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
-
-    return gx, gy, mag
-
-<<<<<<< HEAD
-
-def laplacian_edges(image, ksize=3):
-    if image.ndim == 3:
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    lap = cv2.Laplacian(image.astype(np.float32), cv2.CV_32F, ksize=ksize)
-    return np.abs(lap)
 
 
-def fft2_image(image):
-    if image.ndim == 3:
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    return cv2.dft(np.float32(image), flags=cv2.DFT_COMPLEX_OUTPUT)
-
-=======
 def sobel_edges(image: npt.NDArray[np.generic], ksize: int = 3) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     if image.ndim == 3:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -298,20 +170,8 @@ def laplacian_edges(image: npt.NDArray[np.generic], ksize: int = 3) -> np.ndarra
 
     lap = cv2.Laplacian(np.asarray(gray, dtype=np.float32), cv2.CV_32F, ksize=ksize)
     return np.abs(lap).astype(np.float32)
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
 
-def fftshift2(spectrum):
-    return np.fft.fftshift(spectrum, axes=(0, 1))
 
-<<<<<<< HEAD
-
-def magnitude_spectrum(spectrum, log_scale=True):
-    mag = cv2.magnitude(spectrum[:, :, 0], spectrum[:, :, 1])
-    if log_scale:
-        mag = np.log1p(mag)
-    return mag.astype(np.float32)
-
-=======
 def fft2_image(image: npt.NDArray[np.generic]) -> np.ndarray:
     if image.ndim == 3:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -321,31 +181,8 @@ def fft2_image(image: npt.NDArray[np.generic]) -> np.ndarray:
     gray_f = np.asarray(gray, dtype=np.float32)
     spectrum = cv2.dft(gray_f, flags=cv2.DFT_COMPLEX_OUTPUT)
     return spectrum.astype(np.float32)
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
-
-def ideal_low_pass_filter(shape, cutoff_radius):
-    H, W = shape[:2]
-    Y, X = np.ogrid[:H, :W]
-    center = (H // 2, W // 2)
-
-<<<<<<< HEAD
-    dist = np.sqrt((Y - center[0])**2 + (X - center[1])**2)
-    mask = (dist <= cutoff_radius).astype(np.float32)
-
-    if len(shape) == 3:
-        mask = np.stack([mask, mask], axis=-1)
-
-    return mask
 
 
-def ideal_high_pass_filter(shape, cutoff_radius):
-    return 1.0 - ideal_low_pass_filter(shape, cutoff_radius)
-
-
-def apply_frequency_filter(image, filter_mask):
-    spec = fft2_image(image)
-    spec_shift = fftshift2(spec)
-=======
 def fftshift2(spectrum: npt.NDArray[np.floating]) -> np.ndarray:
     return np.fft.fftshift(spectrum, axes=(0, 1))
 
@@ -355,30 +192,8 @@ def magnitude_spectrum(spectrum: npt.NDArray[np.floating], log_scale: bool = Tru
     if log_scale:
         mag = np.log1p(mag)
     return mag.astype(np.float32)
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
-
-    if filter_mask.ndim == 2:
-        filter_mask = np.stack([filter_mask, filter_mask], axis=-1)
-
-<<<<<<< HEAD
-    filtered = spec_shift * filter_mask
-
-    ishift = np.fft.ifftshift(filtered)
-    img_back = cv2.idft(ishift, flags=cv2.DFT_REAL_OUTPUT | cv2.DFT_SCALE)
-
-    return img_back.astype(np.float32)
 
 
-def normalize_to_uint8(x):
-    arr = np.asarray(x, dtype=np.float32)
-    mn, mx = arr.min(), arr.max()
-
-    if mx <= mn:
-        return np.zeros_like(arr, dtype=np.uint8)
-
-    y = (arr - mn) * 255.0 / (mx - mn)
-    return np.clip(y, 0, 255).astype(np.uint8)
-=======
 def ideal_low_pass_filter(shape: tuple[int, int] | tuple[int, int, int], cutoff_radius: float) -> np.ndarray:
     h, w = shape[:2]
     y, x = np.ogrid[:h, :w]
@@ -564,4 +379,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
->>>>>>> f4a4f0d (Implement Lab 01 filtering and FFT functions)
