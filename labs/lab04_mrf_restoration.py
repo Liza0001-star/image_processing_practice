@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Lab 04 (skeleton): Markov Random Field (MRF) image restoration."""
+"""Lab 04: Markov Random Field (MRF) image restoration."""
 
 import argparse
 from pathlib import Path
@@ -12,6 +12,15 @@ import numpy as np
 PenaltyType = Literal["quadratic", "huber"]
 
 
+def _huber_penalty(d: np.ndarray, delta: float) -> np.ndarray:
+    abs_d = np.abs(d)
+    return np.where(abs_d <= delta, 0.5 * d**2, delta * (abs_d - 0.5 * delta))
+
+
+def _huber_grad(d: np.ndarray, delta: float) -> np.ndarray:
+    return np.where(np.abs(d) <= delta, d, delta * np.sign(d))
+
+
 def mrf_energy(
     x: np.ndarray,
     y: np.ndarray,
@@ -21,21 +30,25 @@ def mrf_energy(
 ) -> float:
     """
     Compute pairwise MRF energy for grayscale image restoration.
-
-    Energy:
-        E(x) = sum_p (x_p - y_p)^2 + lambda * sum_(p,q in N) rho(x_p - x_q)
-
-    Args:
-        x: Restored image candidate `(H,W)`.
-        y: Observed noisy image `(H,W)`.
-        lambda_smooth: Smoothness weight.
-        penalty: `"quadratic"` or `"huber"`.
-        huber_delta: Delta parameter for Huber penalty.
-
-    Returns:
-        Scalar energy.
     """
-    raise NotImplementedError("mrf_energy is not implemented")
+    x = x.astype(np.float32)
+    y = y.astype(np.float32)
+
+    data_term = np.sum((x - y) ** 2)
+
+    dx = x[:, 1:] - x[:, :-1]
+    dy = x[1:, :] - x[:-1, :]
+
+    if penalty == "quadratic":
+        smooth_term = np.sum(dx**2) + np.sum(dy**2)
+    elif penalty == "huber":
+        smooth_term = np.sum(_huber_penalty(dx, huber_delta)) + np.sum(
+            _huber_penalty(dy, huber_delta)
+        )
+    else:
+        raise ValueError(f"Unknown penalty: {penalty}")
+
+    return float(data_term + lambda_smooth * smooth_term)
 
 
 def mrf_denoise(
@@ -48,39 +61,71 @@ def mrf_denoise(
 ) -> np.ndarray:
     """
     Restore grayscale image by minimizing MRF energy.
-
-    Args:
-        y: Observed noisy image `(H,W)`.
-        lambda_smooth: Smoothness weight.
-        num_iters: Number of optimization iterations.
-        step: Optimization step size.
-        penalty: `"quadratic"` or `"huber"`.
-        huber_delta: Delta parameter for Huber penalty.
-
-    Returns:
-        Restored image with the same shape as `y`.
     """
-    raise NotImplementedError("mrf_denoise is not implemented")
+    y = y.astype(np.float32)
+    x = y.copy()
+
+    for _ in range(num_iters):
+        grad = 2.0 * (x - y)
+
+        # Horizontal neighbours
+        d = x[:, 1:] - x[:, :-1]
+
+        if penalty == "quadratic":
+            g = 2.0 * d
+        elif penalty == "huber":
+            g = _huber_grad(d, huber_delta)
+        else:
+            raise ValueError(f"Unknown penalty: {penalty}")
+
+        grad[:, 1:] += lambda_smooth * g
+        grad[:, :-1] -= lambda_smooth * g
+
+        # Vertical neighbours
+        d = x[1:, :] - x[:-1, :]
+
+        if penalty == "quadratic":
+            g = 2.0 * d
+        elif penalty == "huber":
+            g = _huber_grad(d, huber_delta)
+        else:
+            raise ValueError(f"Unknown penalty: {penalty}")
+
+        grad[1:, :] += lambda_smooth * g
+        grad[:-1, :] -= lambda_smooth * g
+
+        x -= step * grad
+        x = np.clip(x, 0.0, 255.0)
+
+    return x.astype(np.float32)
 
 
 def normalize_to_uint8(x: np.ndarray) -> np.ndarray:
     """Min-max normalize array to [0,255] uint8 for visualization."""
-    raise NotImplementedError("normalize_to_uint8 is not implemented")
+    x = x.astype(np.float32)
+    min_val = float(np.min(x))
+    max_val = float(np.max(x))
+
+    if max_val - min_val < 1e-8:
+        return np.zeros_like(x, dtype=np.uint8)
+
+    normalized = (x - min_val) / (max_val - min_val)
+    return np.clip(normalized * 255.0, 0, 255).astype(np.uint8)
 
 
 def main() -> int:
     """
-    Lab 04 demo (skeleton).
+    Lab 04 demo.
 
-    Expected behavior after implementation:
-    - load grayscale image from `./imgs/`
-    - add Gaussian noise (deterministic seed)
-    - denoise with MRF (quadratic and/or huber)
-    - save side-by-side result to `./out/lab04/mrf_denoise.png`
+    Behavior:
+    - load grayscale image from ./imgs/
+    - add Gaussian noise
+    - denoise with MRF quadratic and Huber penalties
+    - save side-by-side result to ./out/lab04/mrf_denoise.png
     """
-    parser = argparse.ArgumentParser(description="Lab 04 skeleton (implement functions first).")
+    parser = argparse.ArgumentParser(description="Lab 04 MRF image restoration.")
     parser.add_argument("--img", type=str, default="lenna.png", help="Input image from ./imgs/")
-    parser.add_argument("--out", type=str, default="out/lab04", help="Output directory (relative to repo root)")
+    parser.add_argument("--out", type=str, default="out/lab04", help="Output directory")
     args = parser.parse_args()
 
     import matplotlib
@@ -103,48 +148,65 @@ def main() -> int:
     if img is None:
         raise FileNotFoundError(str(imgs_dir / args.img))
 
-    missing: list[str] = []
+    clean = img.astype(np.float32)
 
-    try:
-        clean = img.astype(np.float32)
-        rng = np.random.default_rng(0)
-        noisy = clean + rng.normal(0.0, 18.0, size=clean.shape).astype(np.float32)
-        noisy = np.clip(noisy, 0.0, 255.0)
+    rng = np.random.default_rng(0)
+    noisy = clean + rng.normal(0.0, 18.0, size=clean.shape).astype(np.float32)
+    noisy = np.clip(noisy, 0.0, 255.0)
 
-        den_quad = mrf_denoise(noisy, lambda_smooth=0.25, num_iters=80, step=0.1, penalty="quadratic")
-        den_hub = mrf_denoise(noisy, lambda_smooth=0.25, num_iters=80, step=0.1, penalty="huber", huber_delta=8.0)
+    den_quad = mrf_denoise(
+        noisy,
+        lambda_smooth=0.25,
+        num_iters=80,
+        step=0.1,
+        penalty="quadratic",
+    )
 
-        e_noisy_q = mrf_energy(noisy, noisy, lambda_smooth=0.25, penalty="quadratic")
-        e_quad = mrf_energy(den_quad, noisy, lambda_smooth=0.25, penalty="quadratic")
-        e_noisy_h = mrf_energy(noisy, noisy, lambda_smooth=0.25, penalty="huber", huber_delta=8.0)
-        e_hub = mrf_energy(den_hub, noisy, lambda_smooth=0.25, penalty="huber", huber_delta=8.0)
+    den_hub = mrf_denoise(
+        noisy,
+        lambda_smooth=0.25,
+        num_iters=80,
+        step=0.1,
+        penalty="huber",
+        huber_delta=8.0,
+    )
 
-        plt.figure(figsize=(12, 4))
-        panels = [
-            ("Original", clean),
-            ("Noisy (seed=0)", noisy),
-            (f"MRF quadratic\nE: {e_noisy_q:.1f} -> {e_quad:.1f}", den_quad),
-            (f"MRF huber\nE: {e_noisy_h:.1f} -> {e_hub:.1f}", den_hub),
-        ]
-        for i, (title, im) in enumerate(panels, start=1):
-            plt.subplot(1, 4, i)
-            plt.title(title)
-            plt.imshow(normalize_to_uint8(im), cmap="gray")
-            plt.axis("off")
-        save_figure(out_dir / "mrf_denoise.png")
-    except NotImplementedError as exc:
-        missing.append(str(exc))
+    e_noisy_q = mrf_energy(noisy, noisy, lambda_smooth=0.25, penalty="quadratic")
+    e_quad = mrf_energy(den_quad, noisy, lambda_smooth=0.25, penalty="quadratic")
 
-    if missing:
-        (out_dir / "STATUS.txt").write_text(
-            "Lab 04 demo is incomplete. Implement the TODO functions in labs/lab04_mrf_restoration.py.\n\n"
-            + "\n".join(f"- {m}" for m in missing)
-            + "\n",
-            encoding="utf-8",
-        )
-        print(f"Wrote {out_dir / 'STATUS.txt'}")
-        return 2
+    e_noisy_h = mrf_energy(
+        noisy,
+        noisy,
+        lambda_smooth=0.25,
+        penalty="huber",
+        huber_delta=8.0,
+    )
+    e_hub = mrf_energy(
+        den_hub,
+        noisy,
+        lambda_smooth=0.25,
+        penalty="huber",
+        huber_delta=8.0,
+    )
 
+    plt.figure(figsize=(12, 4))
+
+    panels = [
+        ("Original", clean),
+        ("Noisy (seed=0)", noisy),
+        (f"MRF quadratic\nE: {e_noisy_q:.1f} -> {e_quad:.1f}", den_quad),
+        (f"MRF huber\nE: {e_noisy_h:.1f} -> {e_hub:.1f}", den_hub),
+    ]
+
+    for i, (title, im) in enumerate(panels, start=1):
+        plt.subplot(1, 4, i)
+        plt.title(title)
+        plt.imshow(normalize_to_uint8(im), cmap="gray")
+        plt.axis("off")
+
+    save_figure(out_dir / "mrf_denoise.png")
+
+    print(f"Saved result to: {out_dir / 'mrf_denoise.png'}")
     return 0
 
 
